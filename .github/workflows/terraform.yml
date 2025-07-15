@@ -16,7 +16,8 @@ jobs:
       ACTIONS_STEP_DEBUG: true
       TF_LOG: DEBUG
       TF_IN_AUTOMATION: "true"
-      ARM_CLIENT_ID: "1cfde4b6-8395-4089-aef6-b71f83fb029e"
+      # ARM_CLIENT_ID: "1cfde4b6-8395-4089-aef6-b71f83fb029e"
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -33,6 +34,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-terraform-
 
+      - name: Verify Azure Credentials
+        run: |
+          echo "Checking if Azure credentials are set..."
+          [ -n "$ARM_CLIENT_ID" ] && echo "ARM_CLIENT_ID is set" || { echo "Error: ARM_CLIENT_ID is not set"; exit 1; }
+          [ -n "$ARM_CLIENT_SECRET" ] && echo "ARM_CLIENT_SECRET is set" || { echo "Error: ARM_CLIENT_SECRET is not set"; exit 1; }
+          [ -n "$ARM_SUBSCRIPTION_ID" ] && echo "ARM_SUBSCRIPTION_ID is set" || { echo "Error: ARM_SUBSCRIPTION_ID is not set"; exit 1; }
+          [ -n "$ARM_TENANT_ID" ] && echo "ARM_TENANT_ID is set" || { echo "Error: ARM_TENANT_ID is not set"; exit 1; }
+          echo "Testing Azure login..."
+          az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" || { echo "Error: Azure login failed"; exit 1; }
+          echo "Azure login successful"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -43,11 +55,19 @@ jobs:
           terraform init \
             -backend-config="storage_account_name=${{ secrets.TF_STATE_SA }}" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=aks-kafka.tfstate"
+            -backend-config="key=aks-kafka.tfstate" \
+            -backend-config="resource_group_name=${{ secrets.RESOURCE_GROUP_NAME }}" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+
+      - name: Terraform Validate
+        run: terraform validate
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan -parallelism=5
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
