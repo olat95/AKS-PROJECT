@@ -186,3 +186,105 @@ All services deployed successfully. Terraform `apply` completed without errors.
 - Add CI/CD with GitHub Actions
 - Integrate Azure Key Vault
 - Expand into staging/prod environments
+
+---
+
+# Terraform Azure Project Documentation
+
+## Overview
+
+This project utilizes Terraform to manage infrastructure on Azure, with a focus on [INSERT PROJECT OBJECTIVE HERE, e.g., deploying a scalable AKS cluster with Kafka integration]. The Terraform state is stored securely in an Azure Blob Storage backend, authenticated via Azure AD for enhanced security and compliance.
+
+## Environment Setup
+
+### Local Environment
+
+- **Terraform Version**: 1.12.2
+- **Providers**:
+  - `azurerm`: 3.117.1
+  - `random`: 3.7.2
+- **Operating System**: Windows AMD64
+
+### GitHub Actions Workflow
+
+- **Runner**: `ubuntu-latest`
+- **Terraform Version**: 1.12.2
+- **Actions**:
+  - `actions/checkout@v4`
+  - `actions/cache@v3`
+  - `hashicorp/setup-terraform@v3`
+  - `actions/upload-artifact@v4`
+
+## Workflow Configuration
+
+### Trigger
+
+- `push` to `main` branch
+- Manual `workflow_dispatch`
+
+### Steps
+
+1. **Checkout**: Retrieves repository code using `actions/checkout@v4`.
+2. **Cache Terraform**: Caches provider downloads for efficiency with `actions/cache@v3`.
+3. **Verify Azure Credentials**: Validates `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_SUBSCRIPTION_ID`, and `ARM_TENANT_ID`, and tests Azure login.
+4. **Setup Terraform**: Installs Terraform 1.12.2 via `hashicorp/setup-terraform@v3`.
+5. **Terraform Init**: Initializes the backend with Azure Blob Storage.
+6. **Terraform Validate**: Checks configuration syntax.
+7. **Terraform Plan**: Generates an execution plan with `-parallelism=5` and passes Azure credentials.
+8. **Upload Terraform Logs**: Saves debug logs as an artifact.
+9. **Terraform Apply**: Applies the plan on `push` to `main` if successful.
+
+## Backend Configuration
+
+- **Storage Account**: `${{ secrets.TF_STATE_SA }}`
+- **Resource Group**: `${{ secrets.RESOURCE_GROUP_NAME }}`
+- **Container**: `tfstate`
+- **Key**: `aks-kafka.tfstate`
+- **Authentication**: Azure AD using service principal credentials.
+
+## Known Issues and Resolutions
+
+- **Issue**: Workflow failed due to deprecated `actions/upload-artifact@v3`.
+  - **Resolution**: Updated to `actions/upload-artifact@v4` on July 15, 2025.
+- **Issue**: `terraform plan` timed out after 20 minutes.
+  - **Resolution**: Aligned workflow Terraform version to 1.12.2 (matching local) on July 15, 2025.
+
+## Future Improvements
+
+- Upgrade Terraform to 1.9.4 (or latest 1.x) with updated providers.
+- Optimize `parallelism` and timeout based on plan duration.
+- Document specific resource configurations (e.g., AKS, Kafka).
+
+## Action Items
+
+- Verify deployed resources post-`terraform apply`.
+- Update this document with the project objective and resource details.
+- Plan and document the upgrade to a modern Terraform version.
+
+## Troubleshooting Analysis
+
+### Timeline of Issues
+
+- **Initial Problem**: `terraform plan` worked locally but timed out in GitHub Actions.
+- **July 15, 2025**:
+  - 9:19 AM UTC: Identified timeout with variable prompts.
+  - 12:08 PM IST: Resolved `actions/upload-artifact@v3` deprecation.
+  - 12:24 PM IST: Fixed `terraform plan` timeout by aligning versions.
+
+### Root Causes
+
+1. Version mismatch between workflow (1.8.5) and local (1.12.2).
+2. Incompatible provider versions with older Terraform.
+3. Deprecated GitHub Action.
+
+### Resolutions
+
+- Matched `terraform_version` to 1.12.2.
+- Updated `actions/upload-artifact` to v4.
+- Ensured credential passing via environment variables and `-var` flags.
+
+### Lessons Learned
+
+- Maintain version consistency across environments.
+- Regularly update GitHub Actions.
+- Use `TF_LOG: DEBUG` for detailed diagnostics.
