@@ -5,11 +5,15 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   terraform:
     runs-on: ubuntu-latest
 
     env:
+      ACTIONS_STEP_DEBUG: true
       TF_LOG: DEBUG
       TF_IN_AUTOMATION: "true"
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -20,6 +24,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Cache Terraform
+        uses: actions/cache@v3
+        with:
+          path: ~/.terraform
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -34,7 +46,8 @@ jobs:
             -backend-config="key=aks-kafka.tfstate"
 
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        run: terraform plan -out=tfplan -parallelism=5
+        timeout-minutes: 10
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
